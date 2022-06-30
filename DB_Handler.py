@@ -62,7 +62,17 @@ class DB_Handler:
 
 
     def set_task_completion(self, taskID: str, status: bool):
+        # also removes task items from inventory
         self.db.execute('UPDATE Task SET completed=? WHERE ID=?', (status, taskID))
+        self.db.execute('''
+            UPDATE Item
+            SET qtyFIR = (	SELECT IIF(fir==1, IIF(qtyFIR-qty<0, 0, qtyFIR-qty), qtyFIR) FROM Task_Item
+                            WHERE ItemID=Item.ID
+                            AND TaskID=?),
+                qtyNFIR = ( SELECT IIF(fir==0, IIF(qtyNFIR-qty<0, 0, qtyNFIR-qty), qtyNFIR) FROM Task_Item
+                            WHERE ItemID=Item.ID
+                            AND TaskID=?)''',
+            (taskID, taskID)) # removes task items and does not let value drop below 0
         self.conn.commit()
 
 
@@ -82,31 +92,57 @@ class DB_Handler:
 
     def create_views(self):
         self.db.execute('''
-        CREATE VIEW IF NOT EXISTS Item_Quantities (
-            itemID,
-            itemName,
-            ownedNFIR,
-            ownedFIR,
-            taskNFIR,
-            taskFIR,
-            needNFIR,
-            needFIR
-        )
-        AS
-            SELECT
-                item.ID,
-                item.Name,
-                item.qtyNFIR,
-                item.qtyFIR,
-                SUM(CASE WHEN Task_Item.fir=0 THEN Task_Item.qty ELSE 0 END),
-                SUM(CASE WHEN Task_Item.fir=1 THEN Task_Item.qty ELSE 0 END),
-                (SUM(CASE WHEN Task_Item.fir=0 THEN Task_Item.qty ELSE 0 END) - item.qtyNFIR),
-                (SUM(CASE WHEN Task_Item.fir=1 THEN Task_Item.qty ELSE 0 END) - item.qtyFIR)
-            FROM Item
-            INNER JOIN Task_Item ON Item.ID=ItemID
-            INNER JOIN Task ON Task.ID=TaskID
-            WHERE Task.completed=0
-            GROUP BY item.ID''')
+            CREATE VIEW IF NOT EXISTS Item_Quantities (
+                itemID,
+                itemName,
+                ownedNFIR,
+                ownedFIR,
+                taskNFIR,
+                taskFIR,
+                needNFIR,
+                needFIR
+            )
+            AS
+                SELECT
+                    item.ID,
+                    item.Name,
+                    item.qtyNFIR,
+                    item.qtyFIR,
+                    SUM(CASE WHEN Task_Item.fir=0 THEN Task_Item.qty ELSE 0 END),
+                    SUM(CASE WHEN Task_Item.fir=1 THEN Task_Item.qty ELSE 0 END),
+                    (SUM(CASE WHEN Task_Item.fir=0 THEN Task_Item.qty ELSE 0 END) - item.qtyNFIR),
+                    (SUM(CASE WHEN Task_Item.fir=1 THEN Task_Item.qty ELSE 0 END) - item.qtyFIR)
+                FROM Item
+                INNER JOIN Task_Item ON Item.ID=ItemID
+                INNER JOIN Task ON Task.ID=TaskID
+                WHERE Task.completed=0
+                GROUP BY item.ID''')
+
+        # self.db.execute('''
+        # CREATE VIEW IF NOT EXISTS Task_Quantities (
+        #     TaskID,
+        #     TaskName,
+        #     ItemID,
+        #     ItemName,
+        #     ItemQtyFIR,
+        #     ItemQtyNFIR,
+        #     Task_ItemQty,
+        #     Task_ItemFIR
+        # )
+        # AS
+        #     SELECT
+        #         TaskID,
+        #         Task.name,
+        #         ItemID,
+        #         Item.name,
+        #         Item.qtyFIr,
+        #         Item.qtyNFIR,
+        #         Task_Item.qty,
+        #         Task_Item.fir
+        #     FROM Task_Item
+        #     INNER JOIN Item ON ItemID=Item.ID
+        #     INNER JOIN Task ON TaskID=Task.ID''')
+
         self.conn.commit()
 
 

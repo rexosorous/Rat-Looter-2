@@ -136,3 +136,4 @@ dmypy.json
 loot_backup.db
 test.py
 TODO.txt
+releases/
