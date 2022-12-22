@@ -71,4 +71,4 @@ class Window(QMainWindow, Ui_MainWindow):
 
     @qasync.asyncSlot()
     async def wipe(self):
-        pass
+        self.db.wipe()

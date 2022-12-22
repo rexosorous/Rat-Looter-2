@@ -82,6 +82,15 @@ class DB_Handler:
 
 
 
+    def wipe(self):
+        # clears completion status of all quests and resets inventory quantities to 0
+        self.db.execute('UPDATE Task SET completed=false')
+        self.db.execute('UPDATE Item SET qtyNFIR=0, qtyFIR=0')
+        self.conn.commit()
+
+
+
+
 ##############################################################################################################################
 ############################################### CREATING AND POPULATING TABLES ###############################################
 ##############################################################################################################################
