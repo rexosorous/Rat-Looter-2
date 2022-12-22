@@ -1,5 +1,7 @@
 '''
 TODO
+* there is an issue where completing hideout tasks doesn't remove items from your inventory
+    - i think this is due to Task_Item entries for hideout lists [hideout_id]-0-2 as taskID
 * dict factory
 * faction filtering (right now this does not exclude tasks based on faction)
 * wipe function
@@ -64,15 +66,18 @@ class DB_Handler:
     def set_task_completion(self, taskID: str, status: bool):
         # also removes task items from inventory
         self.db.execute('UPDATE Task SET completed=? WHERE ID=?', (status, taskID))
-        self.db.execute('''
-            UPDATE Item
-            SET qtyFIR = (	SELECT IIF(fir==1, IIF(qtyFIR-qty<0, 0, qtyFIR-qty), qtyFIR) FROM Task_Item
-                            WHERE ItemID=Item.ID
-                            AND TaskID=?),
-                qtyNFIR = ( SELECT IIF(fir==0, IIF(qtyNFIR-qty<0, 0, qtyNFIR-qty), qtyNFIR) FROM Task_Item
-                            WHERE ItemID=Item.ID
-                            AND TaskID=?)''',
-            (taskID, taskID)) # removes task items and does not let value drop below 0
+        if status:
+            self.db.execute('''
+                UPDATE Item
+                SET qtyFIR = (	SELECT IIF(fir==1, IIF(qtyFIR-qty<0, 0, qtyFIR-qty), qtyFIR) FROM Task_Item
+                                WHERE ItemID=Item.ID
+                                AND TaskID=?),
+                    qtyNFIR = ( SELECT IIF(fir==0, IIF(qtyNFIR-qty<0, 0, qtyNFIR-qty), qtyNFIR) FROM Task_Item
+                                WHERE ItemID=Item.ID
+                                AND TaskID=?)
+                WHERE Item.ID in (  SELECT ItemID FROM Task_Item
+                                WHERE TaskID=?)''',
+                (taskID, taskID, taskID)) # removes task items and does not let value drop below 0
         self.conn.commit()
 
 
